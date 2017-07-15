@@ -73,9 +73,8 @@ registrar.json
 .ipynb_checkpoints
 *.ipynb
 
-# Crowdsale definitions
-crowdsales/*.yml
-*.csv
+# Crowdsale deployment reports
+crowdsales/*.deployment-report.yml
 
 # Customer test cases
 test_client*.py
