@@ -5,6 +5,7 @@ from collections import Counter
 from collections import defaultdict
 from typing import Tuple
 import os
+import os.path
 import time
 
 import jinja2
@@ -67,6 +68,7 @@ def deploy_contract(project: Project, chain, deploy_address, contract_def: dict,
 
     contract_def["address"] = contract.address
     print(contract_name, "address is", contract.address)
+    print(contract_name, "deployment tx is", txhash)
 
     constructor_args = get_constructor_arguments(contract, kwargs=kwargs)
     print(contract_name, "constructor arguments payload is", constructor_args)
@@ -145,7 +147,10 @@ def deploy_crowdsale(project: Project, chain, source_definitions: dict, deploy_a
             runtime_data["contracts"][name]["etherscan_link"] = get_etherscan_link(chain_name, runtime_data["contracts"][name]["address"])
 
             # Write out our expanded contract
-            expanded_path = os.path.join(os.getcwd(), "build", "expanded", fname)
+            expanded_dir = os.path.join(os.getcwd(), "build", "expanded")
+            if not os.path.exists(expanded_dir):
+                os.makedirs(expanded_dir)
+            expanded_path = os.path.join(expanded_dir, fname)
             with open(expanded_path, "wt") as out:
                 out.write(src)
 
