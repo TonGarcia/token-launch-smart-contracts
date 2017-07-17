@@ -46,7 +46,7 @@ rinkeby:
         # This contract represents ERC-20 token.
         # It has transfer lock up functionality to prevent the token to be transferable
         # until the ICO is over. Furthermore it has dynamic minting supply,
-        # so that the crowdsale contract will create new tokens as contributions arrives in.
+        # so that the crowdsale contract will create new tokens as investment arrives in.
         # This way, there is no need for a separate burn stage at the end of the crowdsale,
         # as we never create the exceeding supply.
         #
@@ -67,7 +67,7 @@ rinkeby:
             contract_file: TokenVault.sol
             arguments:
                 #_owner: "{{contracts.company_wallet.address}}"
-                _freezeEndsAt: "{{ time() + 365*24*3600 }}" # 1 year freeze
+                _freezeEndsAt: "{{ time() + 35*60 }}" # 35 minute freeze
                 _token: "{{contracts.token.address}}"
                 _tokensToBeAllocated: "{{ totalTeamCoins * 10**18 }}" # in "atomic units" (10^18 per full token)
         #
@@ -81,16 +81,16 @@ rinkeby:
             contract_name: FlatPricing
             contract_file: FlatPricing.sol
             arguments:
-                # 1 ETH = 1000 token  => 10^18 wei = 1000 token => 1 token = 10^18 wei / 1000
-                _oneTokenInWei: "{{ (10**18 / 1000 ) | round | int }}"
+                # 1 ETH = 10% of tokens => 10^18 wei = 100 000 000 token => 1 token = 10^(18 - 8) wei
+                _oneTokenInWei: "{{ (10**10) | round | int }}"
 
         #
         # Crowdsale
         #
         # This is the actual crowdsale contract.
-        # It will accept contributions during the crowdsale time period.
-        # For each contributions, it asks the pricing contract for the
-        # current price for this particular contributor.
+        # It will accept investments during the crowdsale time period.
+        # For each investments, it asks the pricing contract for the
+        # current price for this particular investor.
         #
         #
         #
@@ -101,8 +101,8 @@ rinkeby:
                 _token: "{{contracts.token.address}}"
                 _pricingStrategy: "{{contracts.pricing_strategy.address}}"
                 _multisigWallet: "{{contracts.company_wallet.address}}"
-                _start: "{{ time() + 15*60 }}" # starts in 15 minutes
-                _end: "{{ time() + 28*24*3600 }}" # ends in 4 weeks
+                _start: "{{ time() + 5*60 }}" # starts in 5 minutes
+                _end: "{{ time() + 30*60 }}" # ends in 30 minutes
                 #_start: "{{ timestamp(datetime(2017, 7, 14, 16, 0)) }}" what timezone is this?
                 #_end: "{{ timestamp(datetime(2017, 7, 14, 16, 0)) + 30*24*3600 }}" what timezone is this?
                 _minimumFundingGoal: 0
@@ -144,8 +144,8 @@ rinkeby:
         team_vault.transact({"from": deploy_address}).lock()
 
         # Presale allocations
-        #contributor1 = "0xb3428050eA2448eD2E4409bE47E1a50EBac0B2d2"
-        #crowdsale.transact({"from": deploy_address}).preallocate(contributor1, 1000, 100000)
+        #investor1 = "0xb3428050eA2448eD2E4409bE47E1a50EBac0B2d2"
+        #crowdsale.transact({"from": deploy_address}).preallocate(investor1, 1000, 100000)
 
         # Move ownership of all owned contracts to the company address
         crowdsale.transact({"from": deploy_address}).transferOwnership(company_wallet.address)

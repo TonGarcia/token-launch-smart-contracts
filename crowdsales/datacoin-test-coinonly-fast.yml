@@ -1,0 +1,90 @@
+# A testnet deployment for the token, wallet and vault ONLY
+rinkeby:
+
+    # Chain we are connected to.
+    # Either "mainnet" or "ropsten".
+    # Affects Etherscan verification process only.
+    chain: rinkeby
+
+    # Do we perform deployed contract source code verification on etherscan.io service.
+    # This is a semi automatic process using a Chrome browser.
+    verify_on_etherscan: yes
+
+    #               B  M  k   tokens
+    totalCoins:    1000000000
+    totalTeamCoins: 150000000
+    companyCoins:   150000000
+
+    team1:  "0xDdc8963569BC7f237FEe4EAf129d26D276FcF22e"
+    team2:  "0xb3428050eA2448eD2E4409bE47E1a50EBac0B2d2"
+    team3:  "0x8d4DEED6231427Af94c5DB64DF616e244A86fb68"
+
+    #
+    # Contracts section defines different smart contracts that
+    # are required to run the ICO.
+    #
+    contracts:
+
+        # Company multisignature wallet.
+        #
+        # Multiple escrow key holders are required to take action to move
+        # funds around.
+        #
+        # All crowdsale collected funds are deposited to the this multisig wallet in real time.
+        #
+        company_wallet:
+            contract_name: MultiSigWallet
+            contract_file: GnosisWallet.sol
+            arguments:
+                _owners:
+                    - "{{ team1 }}"
+                _required: 1
+
+        #
+        # Token contract
+        #
+        # This contract represents ERC-20 token.
+        # It has transfer lock up functionality to prevent the token to be transferable
+        # until the ICO is over. Furthermore it has dynamic minting supply,
+        # so that the crowdsale contract will create new tokens as contributions arrives in.
+        # This way, there is no need for a separate burn stage at the end of the crowdsale,
+        # as we never create the exceeding supply.
+        #
+        #
+        token:
+            contract_name: CrowdsaleToken
+            contract_file: CrowdsaleToken.sol
+            arguments:
+                _name: DATAcoin-test
+                _symbol: DATA
+                _initialSupply: 0
+                _decimals: 18
+                _mintable: true
+
+        # Token vault for freezing team's tokens
+        team_vault:
+            contract_name: TokenVault
+            contract_file: TokenVault.sol
+            arguments:
+                #_owner: "{{contracts.company_wallet.address}}"
+                _freezeEndsAt: "{{ time() + 35*60 }}" # 35 minute freeze
+                _token: "{{contracts.token.address}}"
+                _tokensToBeAllocated: "{{ totalTeamCoins * 10**18 }}" # in "atomic units" (10^18 per full token)
+
+    # Post-deployment actions connect contracts together.
+    # They set ownership and allowed actions, so that contracts can interact
+    post_actions: |
+        # Mint coins for team and company
+        token.transact({"from": deploy_address}).setMintAgent(deploy_address, True)
+        token.transact({"from": deploy_address}).mint(company_wallet.address, companyCoins)
+        token.transact({"from": deploy_address}).mint(team_vault.address, totalTeamCoins)
+
+        # Team allocations
+        team_vault.transact({"from": deploy_address}).setInvestor(team2, 100 * 10**6 * 10**18) # in "atomic units" (10^18 per full token)
+        team_vault.transact({"from": deploy_address}).setInvestor(team3, 50 * 10**6 * 10**18) # in "atomic units" (10^18 per full token)
+        team_vault.transact({"from": deploy_address}).lock()
+
+    # Make sure that everything we have deployed all contracts in good state
+    # and their internal state is sane
+    verify_actions: |
+        assert team_vault.call().getState() == 1    # State.Holding
