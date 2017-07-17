@@ -10,6 +10,18 @@ rinkeby:
     # This is a semi automatic process using a Chrome browser.
     verify_on_etherscan: yes
 
+    #               B  M  k   tokens
+    totalCoins:    1000000000
+    totalTeamCoins: 150000000
+    companyCoins:   150000000
+
+    nikke:  "0xDdc8963569BC7f237FEe4EAf129d26D276FcF22e"
+    risto:  "0x9e3d69305da51f34ee29bfb52721e3a824d59e69"
+    henri:  "0x8d4DEED6231427Af94c5DB64DF616e244A86fb68"
+    juuso:  "0xb3428050eA2448eD2E4409bE47E1a50EBac0B2d2"
+    aapeli: "0x26aa20a3ca450537f1bb5b037facd513c723153b"
+    eric:   "0x0a70ed3bc440401e51c5b714b504b24d144413bb"
+
     #
     # Contracts section defines different smart contracts that
     # are required to run the ICO.
@@ -26,13 +38,14 @@ rinkeby:
         #
         # All crowdsale collected funds are deposited to the this multisig wallet in real time.
         #
-        team_multisig:
+        company_wallet:
             contract_name: MultiSigWallet
             contract_file: GnosisWallet.sol
             arguments:
                 _owners:
-                    - "0xAF9FafbEa019876353c5E3794c86D300fc852e26"
-                    - "0x8d4DEED6231427Af94c5DB64DF616e244A86fb68"
+                    - "{{ nikke }}"
+                    - "{{ risto }}"
+                    - "{{ henri }}"
                 _required: 2
 
         #
@@ -54,12 +67,10 @@ rinkeby:
         #    contract_name: PresaleFundCollector
         #    contract_file: PresaleFundCollector.sol
         #    arguments:
-        #        _owner: "{{contracts.team_multisig.address}}"
+        #        _owner: "{{contracts.company_wallet.address}}"
         #        # Set 30 days in the future from the moment of deployment
         #        _freezeEndsAt: "{{ time() + 30*24*3600 }}"
         #        _weiMinimumLimit: "{{ to_wei(750, 'ether') }}"
-
-
 
         #
         # Token contract
@@ -81,6 +92,16 @@ rinkeby:
                 _initialSupply: 0
                 _decimals: 18
                 _mintable: true
+
+        # Token vault for freezing team's tokens
+        team_vault:
+            contract_name: TokenVault
+            contract_file: TokenVault.sol
+            arguments:
+                #_owner: "{{contracts.company_wallet.address}}"
+                _freezeEndsAt: "{{ time() + 365*24*3600 }}" # 1 year freeze
+                _token: "{{contracts.token.address}}"
+                _tokensToBeAllocated: "{{ totalTeamCoins * 10**18 }}" # in "atomic units" (10^18 per full token)
         #
         # Pricing strategy
         #
@@ -113,13 +134,13 @@ rinkeby:
             arguments:
                 _token: "{{contracts.token.address}}"
                 _pricingStrategy: "{{contracts.pricing_strategy.address}}"
-                _multisigWallet: "{{contracts.team_multisig.address}}"
+                _multisigWallet: "{{contracts.company_wallet.address}}"
                 _start: "{{ time() + 15*60 }}" # starts in 15 minutes
                 _end: "{{ time() + 28*24*3600 }}" # ends in 4 weeks
                 #_start: "{{ timestamp(datetime(2017, 7, 14, 16, 0)) }}" what timezone is this?
                 #_end: "{{ timestamp(datetime(2017, 7, 14, 16, 0)) + 30*24*3600 }}" what timezone is this?
                 _minimumFundingGoal: 0
-                _maximumSellableTokens: "{{ 7 * 10**8 * 10**18 }}" # 10^9 tokens, minus team 30%, in "atomic numbers" (10^18)
+                _maximumSellableTokens: "{{ (totalCoins - totalTeamCoins - companyCoins) * 10**18 }}" # in "atomic units" (10^18 per full token)
         #
         # Finalize contract
         #
@@ -145,21 +166,31 @@ rinkeby:
 
         # Set actions what happen at the end of the crodsale.
         # Enable token mintint at the end of the crowdsale to create bonus pool, founder pool and such
-        token.transact({"from": deploy_address}).setMintAgent(finalize_agent.address, True)
         crowdsale.transact({"from": deploy_address}).setFinalizeAgent(finalize_agent.address)
+        token.transact({"from": deploy_address}).setMintAgent(finalize_agent.address, True)
+        token.transact({"from": deploy_address}).setReleaseAgent(finalize_agent.address)
         token.transact({"from": deploy_address}).setReleaseAgent(finalize_agent.address)
 
-        # Team and presale allocations
-        crowdsale.transact({"from": deploy_address}).preallocate(team_multisig.address, 300000000, 0)
+        # Team and company allocations
+        crowdsale.transact({"from": deploy_address}).preallocate(company_wallet.address, companyCoins, 0)
+        crowdsale.transact({"from": deploy_address}).preallocate(team_vault.address, totalTeamCoins, 0)
+        team_vault.transact({"from": deploy_address}).setInvestor(juuso, 50 * 10**6 * 10**18) # in "atomic units" (10^18 per full token)
+        team_vault.transact({"from": deploy_address}).setInvestor(aapeli, 50 * 10**6 * 10**18) # in "atomic units" (10^18 per full token)
+        team_vault.transact({"from": deploy_address}).setInvestor(eric, 50 * 10**6 * 10**18) # in "atomic units" (10^18 per full token)
+        team_vault.transact({"from": deploy_address}).lock()
+
+        # Presale allocations
+        #fat_cat = "0xb3428050eA2448eD2E4409bE47E1a50EBac0B2d2"
+        #crowdsale.transact({"from": deploy_address}).preallocate(fat_cat, 1000, 100000)
 
         # Move ownership of all owned contracts to the team multisig address
-        crowdsale.transact({"from": deploy_address}).transferOwnership(team_multisig.address)
-        token.transact({"from": deploy_address}).transferOwnership(team_multisig.address)
+        crowdsale.transact({"from": deploy_address}).transferOwnership(company_wallet.address)
+        token.transact({"from": deploy_address}).transferOwnership(company_wallet.address)
 
     # Make sure that everything we have deployed all contracts in good state
     # and their internal state is sane
     verify_actions: |
-        assert token.call().owner() == team_multisig.address
-        assert crowdsale.call().owner() == team_multisig.address
+        assert token.call().owner() == company_wallet.address
+        assert crowdsale.call().owner() == company_wallet.address
         assert finalize_agent.call().isSane()
         assert crowdsale.call().getState() == CrowdsaleState.PreFunding
