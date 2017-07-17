@@ -15,10 +15,6 @@ rinkeby:
     totalTeamCoins: 150000000
     companyCoins:   150000000
 
-    team1:  "0xDdc8963569BC7f237FEe4EAf129d26D276FcF22e"
-    team2:  "0xb3428050eA2448eD2E4409bE47E1a50EBac0B2d2"
-    team3:  "0x8d4DEED6231427Af94c5DB64DF616e244A86fb68"
-
     #
     # Contracts section defines different smart contracts that
     # are required to run the ICO.
@@ -37,8 +33,10 @@ rinkeby:
             contract_file: GnosisWallet.sol
             arguments:
                 _owners:
-                    - "{{ team1 }}"
-                _required: 1
+                    - "0xf292c7c8ad3ce239e31132fe7bbaa4600e940faf"
+                    - "0x5d59280c8d3d4bf75cd4a4c6c1e23d00d8735a56"
+                    - "0xf210482142bfdc654b7621b1e461812851176799"
+                _required: 2
 
         #
         # Token contract
@@ -76,15 +74,27 @@ rinkeby:
     post_actions: |
         # Mint coins for team and company
         token.transact({"from": deploy_address}).setMintAgent(deploy_address, True)
-        token.transact({"from": deploy_address}).mint(company_wallet.address, companyCoins)
-        token.transact({"from": deploy_address}).mint(team_vault.address, totalTeamCoins)
+        token.transact({"from": deploy_address}).mint(company_wallet.address, companyCoins * 10**18)
+        token.transact({"from": deploy_address}).mint(team_vault.address, totalTeamCoins * 10**18)
+        token.transact({"from": deploy_address}).setMintAgent(deploy_address, False)
 
-        # Team allocations
-        team_vault.transact({"from": deploy_address}).setInvestor(team2, 100 * 10**6 * 10**18) # in "atomic units" (10^18 per full token)
-        team_vault.transact({"from": deploy_address}).setInvestor(team3, 50 * 10**6 * 10**18) # in "atomic units" (10^18 per full token)
-        team_vault.transact({"from": deploy_address}).lock()
+        # Team allocations, in "atomic units" (10^18 per full token)
+        team_vault.transact({"from": deploy_address}).setInvestor("0xd67f5fea79e3196de8c1bde7f9d8f05fdbb1a1ef", 50 * 10**6 * 10**18)
+        team_vault.transact({"from": deploy_address}).setInvestor("0x90e7f3137baf2e1d594198fa2db56b0e71600359", 30 * 10**6 * 10**18)
+        team_vault.transact({"from": deploy_address}).setInvestor("0x169a815053fcf86ffa6f22aaa63e0acd90357035", 40 * 10**6 * 10**18)
+        team_vault.transact({"from": deploy_address}).setInvestor("0x8776bff824663b37deaf6126dfca519ecface784", 5 * 10**6 * 10**18)
+        team_vault.transact({"from": deploy_address}).setInvestor("0xf9e285e60bcbfa4aa3cf76d2e8103656b47e5e84", 5 * 10**6 * 10**18)
+        team_vault.transact({"from": deploy_address}).setInvestor("0x8c31be58def186fecd0836dbbb5d43abbe5d401b", 5 * 10**6 * 10**18)
+
+        # TEST ALLOCATION to fill up the vault
+        team_vault.transact({"from": deploy_address}).setInvestor("0xDdc8963569BC7f237FEe4EAf129d26D276FcF22e", 15 * 10**6 * 10**18)
+
+        token.transact({"from": deploy_address}).transferOwnership(company_wallet.address)
+        token.transact({"from": deploy_address}).setUpgradeMaster(company_wallet.address)
+        team_vault.transact({"from": deploy_address}).transferOwnership(company_wallet.address)
 
     # Make sure that everything we have deployed all contracts in good state
     # and their internal state is sane
     verify_actions: |
-        assert team_vault.call().getState() == 1    # State.Holding
+        #assert team_vault.call().getState() == 1    # State.Loading
+        #assert team_vault.call().getState() == 2    # State.Holding

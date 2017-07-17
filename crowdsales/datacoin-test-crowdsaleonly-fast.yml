@@ -1,4 +1,5 @@
-# A testnet deployment for the crowdsale contracts
+# A testnet deployment for the token, wallet and vault ONLY
+# IMPORTANT: Remember to token.transferOwnership(deploy_address)
 rinkeby:
 
     # Chain we are connected to.
@@ -14,10 +15,6 @@ rinkeby:
     totalCoins:    1000000000
     totalTeamCoins: 150000000
     companyCoins:   150000000
-
-    team1:  "0xDdc8963569BC7f237FEe4EAf129d26D276FcF22e"
-    team2:  "0xb3428050eA2448eD2E4409bE47E1a50EBac0B2d2"
-    team3:  "0x8d4DEED6231427Af94c5DB64DF616e244A86fb68"
 
     #
     # Contracts section defines different smart contracts that
@@ -35,10 +32,7 @@ rinkeby:
         company_wallet:
             contract_name: MultiSigWallet
             contract_file: GnosisWallet.sol
-            arguments:
-                _owners:
-                    - "{{ team1 }}"
-                _required: 1
+            address: "0x92905b1f4c7c599d575cbef3fd00c5b161666cc6"
 
         #
         # Token contract
@@ -46,7 +40,7 @@ rinkeby:
         # This contract represents ERC-20 token.
         # It has transfer lock up functionality to prevent the token to be transferable
         # until the ICO is over. Furthermore it has dynamic minting supply,
-        # so that the crowdsale contract will create new tokens as investment arrives in.
+        # so that the crowdsale contract will create new tokens as contributions arrives in.
         # This way, there is no need for a separate burn stage at the end of the crowdsale,
         # as we never create the exceeding supply.
         #
@@ -54,22 +48,8 @@ rinkeby:
         token:
             contract_name: CrowdsaleToken
             contract_file: CrowdsaleToken.sol
-            arguments:
-                _name: DATAcoin-test
-                _symbol: DATA
-                _initialSupply: 0
-                _decimals: 18
-                _mintable: true
+            address: "0x806a07831684c7cfa5f17e27490c939ce63b34fc"
 
-        # Token vault for freezing team's tokens
-        team_vault:
-            contract_name: TokenVault
-            contract_file: TokenVault.sol
-            arguments:
-                #_owner: "{{contracts.company_wallet.address}}"
-                _freezeEndsAt: "{{ time() + 35*60 }}" # 35 minute freeze
-                _token: "{{contracts.token.address}}"
-                _tokensToBeAllocated: "{{ totalTeamCoins * 10**18 }}" # in "atomic units" (10^18 per full token)
         #
         # Pricing strategy
         #
@@ -81,16 +61,16 @@ rinkeby:
             contract_name: FlatPricing
             contract_file: FlatPricing.sol
             arguments:
-                # 1 ETH = 10% of tokens => 10^18 wei = 100 000 000 token => 1 token = 10^(18 - 8) wei
-                _oneTokenInWei: "{{ (10**10) | round | int }}"
+                # 1 ETH = 1000 token  => 10^18 wei = 1000 token => 1 token = 10^18 wei / 1000
+                _oneTokenInWei: "{{ (10**18 / 1000000000 ) | round | int }}"
 
         #
         # Crowdsale
         #
         # This is the actual crowdsale contract.
-        # It will accept investments during the crowdsale time period.
-        # For each investments, it asks the pricing contract for the
-        # current price for this particular investor.
+        # It will accept contributions during the crowdsale time period.
+        # For each contributions, it asks the pricing contract for the
+        # current price for this particular contributor.
         #
         #
         #
@@ -101,8 +81,8 @@ rinkeby:
                 _token: "{{contracts.token.address}}"
                 _pricingStrategy: "{{contracts.pricing_strategy.address}}"
                 _multisigWallet: "{{contracts.company_wallet.address}}"
-                _start: "{{ time() + 5*60 }}" # starts in 5 minutes
-                _end: "{{ time() + 30*60 }}" # ends in 30 minutes
+                _start: "{{ time() + 5*60 }}"
+                _end: "{{ time() + 15*60 }}"
                 #_start: "{{ timestamp(datetime(2017, 7, 14, 16, 0)) }}" what timezone is this?
                 #_end: "{{ timestamp(datetime(2017, 7, 14, 16, 0)) + 30*24*3600 }}" what timezone is this?
                 _minimumFundingGoal: 0
@@ -127,30 +107,22 @@ rinkeby:
     # Post-deployment actions connect contracts together.
     # They set ownership and allowed actions, so that contracts can interact
     post_actions: |
+        # BEFORE RUNNING: Remember to token.transferOwnership(deploy_address)
+
         # Enable new token minting by a crowdsale contract
         token.transact({"from": deploy_address}).setMintAgent(crowdsale.address, True)
 
         # Set actions what happen at the end of the crodsale.
         # Enable token mintint at the end of the crowdsale to create bonus pool, founder pool and such
         crowdsale.transact({"from": deploy_address}).setFinalizeAgent(finalize_agent.address)
-        token.transact({"from": deploy_address}).setMintAgent(finalize_agent.address, True)
         token.transact({"from": deploy_address}).setReleaseAgent(finalize_agent.address)
 
-        # Team and company allocations
-        crowdsale.transact({"from": deploy_address}).preallocate(company_wallet.address, companyCoins, 0)
-        crowdsale.transact({"from": deploy_address}).preallocate(team_vault.address, totalTeamCoins, 0)
-        team_vault.transact({"from": deploy_address}).setInvestor(team2, 100 * 10**6 * 10**18) # in "atomic units" (10^18 per full token)
-        team_vault.transact({"from": deploy_address}).setInvestor(team3, 50 * 10**6 * 10**18) # in "atomic units" (10^18 per full token)
-        team_vault.transact({"from": deploy_address}).lock()
-
         # Presale allocations
-        #investor1 = "0xb3428050eA2448eD2E4409bE47E1a50EBac0B2d2"
-        #crowdsale.transact({"from": deploy_address}).preallocate(investor1, 1000, 100000)
+        crowdsale.transact({"from": deploy_address}).preallocate("0xb3428050eA2448eD2E4409bE47E1a50EBac0B2d2", 55 * 10**6 * 10**18, 5870 * 10**18)
 
         # Move ownership of all owned contracts to the company address
         crowdsale.transact({"from": deploy_address}).transferOwnership(company_wallet.address)
         token.transact({"from": deploy_address}).transferOwnership(company_wallet.address)
-        token.transact({"from": deploy_address}).setUpgradeMaster(company_wallet.address)
 
     # Make sure that everything we have deployed all contracts in good state
     # and their internal state is sane
@@ -159,3 +131,5 @@ rinkeby:
         assert crowdsale.call().owner() == company_wallet.address
         assert finalize_agent.call().isSane()
         assert crowdsale.call().getState() == CrowdsaleState.PreFunding
+        assert crowdsale.call().tokensSold() == 55 * 10**6 * 10**18
+        assert token.call().totalSupply() == (totalTeamCoins + companyCoins) * 10**18 + crowdsale.call().tokensSold()

@@ -255,6 +255,11 @@ def _deploy_contracts(project, chain, web3, yaml_filename, chain_data, deploy_ad
     write_deployment_report(yaml_filename, runtime_data)
     end_balance = from_wei(web3.eth.getBalance(address), "ether")
     print("Deployment cost is", start_balance - end_balance, "ETH")
+
+    print("Deployed contracts:")
+    for name, contract in contracts.items():
+        print(name, contract.address)
+
     return runtime_data, statistics, contracts
 
 

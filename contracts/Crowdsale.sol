@@ -229,25 +229,21 @@ contract Crowdsale is Haltable {
    *
    * No money is exchanged, as the crowdsale team already have received the payment.
    *
-   * @param fullTokens tokens as full tokens - decimal places added internally
-   * @param weiPrice Price of a single full token in wei
+   * @param tokenAmount Tokens (in "atomic units") allocated to the contributor
+   * @param weiAmount Contribution in wei
    *
    */
-  function preallocate(address receiver, uint fullTokens, uint weiPrice) public onlyOwner {
-
-    uint tokenAmount = fullTokens * 10**token.decimals();
-
+  function preallocate(address receiver, uint tokenAmount, uint weiAmount) public onlyOwner {
     // Free pre-allocations don't count as "sold tokens"
-    if (weiPrice == 0) {
+    if (weiAmount == 0) {
       tokenAmountOf[receiver] = tokenAmountOf[receiver].plus(tokenAmount);
       assignTokens(receiver, tokenAmount);
     } else {
-      uint weiAmount = weiPrice * fullTokens;
-
       weiRaised = weiRaised.plus(weiAmount);
       tokensSold = tokensSold.plus(tokenAmount);
       investedAmountOf[receiver] = investedAmountOf[receiver].plus(weiAmount);
       tokenAmountOf[receiver] = tokenAmountOf[receiver].plus(tokenAmount);
+      investorCount++;
 
       assignTokens(receiver, tokenAmount);
 
