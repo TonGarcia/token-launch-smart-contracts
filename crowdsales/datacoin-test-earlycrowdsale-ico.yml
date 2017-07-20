@@ -1,0 +1,97 @@
+# A testnet deployment for the crowdsale contracts
+rinkeby:
+
+    # Chain we are connected to.
+    # Either "mainnet" or "ropsten".
+    # Affects Etherscan verification process only.
+    chain: rinkeby
+
+    # Do we perform deployed contract source code verification on etherscan.io service.
+    # This is a semi automatic process using a Chrome browser.
+    verify_on_etherscan: yes
+
+    #
+    # Contracts section defines different smart contracts that
+    # are required to run the ICO.
+    #
+    contracts:
+
+        # Company multisignature wallet.
+        #
+        # Multiple escrow key holders are required to take action to move
+        # funds around.
+        #
+        # All crowdsale collected funds are deposited to the this multisig wallet in real time.
+        #
+        company_wallet:
+            contract_name: MultiSigWallet
+            contract_file: GnosisWallet.sol
+            address: "0x92905b1f4c7c599d575cbef3fd00c5b161666cc6"   # rinkeby
+            #address: "0x1bb7804d12fa4f70ab63d0bbe8cb0b1992694338"  # mainnet
+
+        #
+        # Pricing strategy
+        #
+        # Pricing strategy defines the price of a token in the different stages of the crowdsale.
+        # Here we use milestone based pricing that has a different price for the token every week of the crowdale.
+        #
+        #
+        pricing_strategy:
+            contract_name: FlatPricing
+            contract_file: FlatPricing.sol
+            arguments:
+                # ICO price: 1 ETH = 1000 token  => 10^18 wei = 1000 token => 1 token = 10^18 wei / 1000
+                # early price: 15% of tokens = 150 000 000 tokens = 15 ETH => 1 token = 10^18 wei / 10^7
+                _oneTokenInWei: "{{ (10**18 / 1000 ) | round | int }}"
+
+        #
+        # Crowdsale
+        #
+        # This is the actual crowdsale contract.
+        # It will accept contributions during the crowdsale time period.
+        # For each contributions, it asks the pricing contract for the
+        # current price for this particular contributor.
+        #
+        #
+        #
+        crowdsale:
+            contract_name: MintedTokenCappedCrowdsale
+            contract_file: MintedTokenCappedCrowdsale.sol
+            address: "0x4d31f6007df2f545d6f9c5bb1113d2d04346cf61"   # rinkeby
+            #address: ""    # mainnet
+
+    # Token allocations:
+    #               B  M  k   tokens
+    totalCoins:    1000000000
+    totalTeamCoins: 150000000
+    companyCoins:   150000000
+
+    # Post-deployment actions connect contracts together.
+    # They set ownership and allowed actions, so that contracts can interact
+    post_actions: |
+        # IMPORTANT: first transferOwnership of crowdsale to deploy_address 
+
+        # Set the ICO price
+        crowdsale.transact({"from": deploy_address}).setPricingStrategy(pricing_strategy.address)
+
+        # Set starting date (seconds since epoch)
+        crowdsale.transact({"from": deploy_address}).setStartsAt(1509494400)    # 2017-11-01
+
+        # Remove team members' transfer rights
+        token.transact({"from": deploy_address}).setTransferAgent("0x372515A11081431b1590194327fb97e98c20c6cc", False)
+        token.transact({"from": deploy_address}).setTransferAgent("0x8d641Db9E41824f616E95E64fe86f94da397Fe6a", False)
+        token.transact({"from": deploy_address}).setTransferAgent("0x0803668e2Dd3e779321560d2cf7957B66DD629Aa", False)
+        token.transact({"from": deploy_address}).setTransferAgent("0x53887F392660d7F6BB15A61d4B1d102DD4cF4983", False)
+        token.transact({"from": deploy_address}).setTransferAgent("0x8173d65C295a6982881245F16ce4808852dCE5f8", False)
+        token.transact({"from": deploy_address}).setTransferAgent("0xed72b55ed81ea2d5d6471a2833a6d8ab06f64857", False)
+
+        # Return crowdsale ownership to the company address
+        crowdsale.transact({"from": deploy_address}).transferOwnership(company_wallet.address)
+
+    # Make sure that everything we have deployed all contracts in good state
+    # and their internal state is sane
+    verify_actions: |
+        assert token.call().owner() == company_wallet.address
+        assert crowdsale.call().owner() == company_wallet.address
+        assert finalize_agent.call().isSane()
+        assert crowdsale.call().getState() == CrowdsaleState.PreFunding

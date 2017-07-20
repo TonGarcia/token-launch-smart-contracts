@@ -1,0 +1,96 @@
+# A testnet deployment for the token, wallet and vault ONLY
+mainnet:
+
+    # Chain we are connected to.
+    # Either "mainnet" or "ropsten".
+    # Affects Etherscan verification process only.
+    chain: mainnet
+
+    # Do we perform deployed contract source code verification on etherscan.io service.
+    # This is a semi automatic process using a Chrome browser.
+    verify_on_etherscan: yes
+
+    #               B  M  k   tokens
+    totalCoins:    1000000000
+    totalTeamCoins: 150000000
+    companyCoins:   150000000
+
+    #
+    # Contracts section defines different smart contracts that
+    # are required to run the ICO.
+    #
+    contracts:
+
+        # Company multisignature wallet.
+        #
+        # Multiple escrow key holders are required to take action to move
+        # funds around.
+        #
+        # All crowdsale collected funds are deposited to the this multisig wallet in real time.
+        #
+        company_wallet:
+            contract_name: MultiSigWallet
+            contract_file: GnosisWallet.sol
+            arguments:
+                _owners:
+                    - "0xFeAACDBBc318EbBF9BB5835D4173C1a7fC24B3b9"
+                    - "0xdFa5D494e1dfC45a43654a1D512Da250DDD31A37"
+                    - "0x455f27e21881b33d8b848EcC266d404C4136acab"
+                _required: 2
+
+        #
+        # Token contract
+        #
+        # This contract represents ERC-20 token.
+        # It has transfer lock up functionality to prevent the token to be transferable
+        # until the ICO is over. Furthermore it has dynamic minting supply,
+        # so that the crowdsale contract will create new tokens as contributions arrives in.
+        # This way, there is no need for a separate burn stage at the end of the crowdsale,
+        # as we never create the exceeding supply.
+        #
+        #
+        token:
+            contract_name: CrowdsaleToken
+            contract_file: CrowdsaleToken.sol
+            arguments:
+                _name: DATAcoin
+                _symbol: DATA
+                _initialSupply: 0
+                _decimals: 18
+                _mintable: true
+
+        # Token vault for freezing team's tokens
+        team_vault:
+            contract_name: TokenVault
+            contract_file: TokenVault.sol
+            arguments:
+                #_owner: "{{contracts.company_wallet.address}}"
+                _freezeEndsAt: "{{ timestamp(datetime(2018, 11, 1, 0, 0)) }}"
+                _token: "{{contracts.token.address}}"
+                _tokensToBeAllocated: "{{ totalTeamCoins * 10**18 }}" # in "atomic units" (10^18 per full token)
+
+    # Post-deployment actions connect contracts together.
+    # They set ownership and allowed actions, so that contracts can interact
+    post_actions: |
+        # Mint coins for team and company
+        token.transact({"from": deploy_address}).setMintAgent(deploy_address, True)
+        token.transact({"from": deploy_address}).mint(company_wallet.address, companyCoins * 10**18)
+        token.transact({"from": deploy_address}).mint(team_vault.address, totalTeamCoins * 10**18)
+        token.transact({"from": deploy_address}).setMintAgent(deploy_address, False)
+
+        # Team allocations, in "atomic units" (10^18 per full token)
+        team_vault.transact({"from": deploy_address}).setInvestor("0x372515A11081431b1590194327fb97e98c20c6cc", 49000000 * 10**18)
+        team_vault.transact({"from": deploy_address}).setInvestor("0x8d641Db9E41824f616E95E64fe86f94da397Fe6a", 28500000 * 10**18)
+        team_vault.transact({"from": deploy_address}).setInvestor("0x0803668e2Dd3e779321560d2cf7957B66DD629Aa", 39500000 * 10**18)
+        team_vault.transact({"from": deploy_address}).setInvestor("0x53887F392660d7F6BB15A61d4B1d102DD4cF4983", 7000000 * 10**18)
+        team_vault.transact({"from": deploy_address}).setInvestor("0x8173d65C295a6982881245F16ce4808852dCE5f8", 7000000 * 10**18)
+        team_vault.transact({"from": deploy_address}).setInvestor("0xed72b55ed81ea2d5d6471a2833a6d8ab06f64857", 7000000 * 10**18)
+
+        token.transact({"from": deploy_address}).transferOwnership(company_wallet.address)
+        token.transact({"from": deploy_address}).setUpgradeMaster(company_wallet.address)
+        team_vault.transact({"from": deploy_address}).transferOwnership(company_wallet.address)
+
+    # Make sure that everything we have deployed all contracts in good state
+    # and their internal state is sane
+    verify_actions: |
+        assert team_vault.call().tokensAllocatedTotal() == 138000000 * 10**18

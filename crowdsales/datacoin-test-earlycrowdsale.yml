@@ -1,0 +1,178 @@
+# A testnet deployment for the crowdsale contracts
+rinkeby:
+
+    # Chain we are connected to.
+    # Either "mainnet" or "ropsten".
+    # Affects Etherscan verification process only.
+    chain: rinkeby
+
+    # Do we perform deployed contract source code verification on etherscan.io service.
+    # This is a semi automatic process using a Chrome browser.
+    verify_on_etherscan: yes
+
+    #
+    # Contracts section defines different smart contracts that
+    # are required to run the ICO.
+    #
+    contracts:
+
+        # Company multisignature wallet.
+        #
+        # Multiple escrow key holders are required to take action to move
+        # funds around.
+        #
+        # All crowdsale collected funds are deposited to the this multisig wallet in real time.
+        #
+        company_wallet:
+            contract_name: MultiSigWallet
+            contract_file: GnosisWallet.sol
+            address: "0x92905b1f4c7c599d575cbef3fd00c5b161666cc6"   # rinkeby
+            #address: "0x1bb7804d12fa4f70ab63d0bbe8cb0b1992694338"  # mainnet
+
+        #
+        # Token contract
+        #
+        # This contract represents ERC-20 token.
+        # It has transfer lock up functionality to prevent the token to be transferable
+        # until the ICO is over. Furthermore it has dynamic minting supply,
+        # so that the crowdsale contract will create new tokens as contributions arrives in.
+        # This way, there is no need for a separate burn stage at the end of the crowdsale,
+        # as we never create the exceeding supply.
+        #
+        #
+        token:
+            contract_name: CrowdsaleToken
+            contract_file: CrowdsaleToken.sol
+            arguments:
+                _name: DATAcoin-test
+                _symbol: DATA
+                _initialSupply: 0
+                _decimals: 18
+                _mintable: true
+
+        # Token vault for freezing team's tokens
+        team_vault:
+            contract_name: TokenVault
+            contract_file: TokenVault.sol
+            arguments:
+                #_owner: "{{contracts.company_wallet.address}}"
+                _freezeEndsAt: "{{ timestamp(datetime(2018, 11, 1, 0, 0)) }}"
+                _token: "{{contracts.token.address}}"
+                _tokensToBeAllocated: "{{ totalTeamCoins * 10**18 }}" # in "atomic units" (10^18 per full token)
+        #
+        # Pricing strategy
+        #
+        # Pricing strategy defines the price of a token in the different stages of the crowdsale.
+        # Here we use milestone based pricing that has a different price for the token every week of the crowdale.
+        #
+        #
+        pricing_strategy:
+            contract_name: FlatPricing
+            contract_file: FlatPricing.sol
+            arguments:
+                # ICO price: 1 ETH = 1000 token  => 10^18 wei = 1000 token => 1 token = 10^18 wei / 1000
+                # early price: 15% of tokens = 150 000 000 tokens = 15 ETH => 1 token = 10^18 wei / 10^7
+                _oneTokenInWei: "{{ (10**18 / 10**7 ) | round | int }}"
+
+        #
+        # Crowdsale
+        #
+        # This is the actual crowdsale contract.
+        # It will accept contributions during the crowdsale time period.
+        # For each contributions, it asks the pricing contract for the
+        # current price for this particular contributor.
+        #
+        #
+        #
+        crowdsale:
+            contract_name: MintedTokenCappedCrowdsale
+            contract_file: MintedTokenCappedCrowdsale.sol
+            arguments:
+                _token: "{{contracts.token.address}}"
+                _pricingStrategy: "{{contracts.pricing_strategy.address}}"
+                _multisigWallet: "{{contracts.company_wallet.address}}"
+                _start: "{{ timestamp(datetime(2017, 10, 1, 16, 0)) }}"  # UTC
+                _end: "{{ timestamp(datetime(2017, 11, 1, 16, 0)) }}"  # UTC
+                _minimumFundingGoal: 0
+                _maximumSellableTokens: "{{ (totalCoins - companyCoins) * 10**18 }}" # in "atomic units" (10^18 per full token)
+        #
+        # Finalize contract
+        #
+        # Finalize contract defines what happens at the end of the successful crowdsale.
+        #
+        # The bonus finalize agent we define here 1) makes tokens transferable by releasing
+        # the transfer restrictions 2) mints 25% new tokens for the team to be
+        # reserved for founders, bounties and such. These new tokens are deposited in the
+        # team multisig wallet.
+        #
+        finalize_agent:
+            contract_name: DefaultFinalizeAgent
+            contract_file: DefaultFinalizeAgent.sol
+            arguments:
+                _token: "{{contracts.token.address}}"
+                _crowdsale: "{{contracts.crowdsale.address}}"
+
+    # Token allocations:
+    #               B  M  k   tokens
+    totalCoins:    1000000000
+    totalTeamCoins: 150000000
+    companyCoins:   150000000
+
+    # Post-deployment actions connect contracts together.
+    # They set ownership and allowed actions, so that contracts can interact
+    post_actions: |
+        # Enable new token minting by a crowdsale contract
+        token.transact({"from": deploy_address}).setMintAgent(crowdsale.address, True)
+
+        # Set actions what happen at the end of the crodsale.
+        # Enable token mintint at the end of the crowdsale to create bonus pool, founder pool and such
+        crowdsale.transact({"from": deploy_address}).setFinalizeAgent(finalize_agent.address)
+        token.transact({"from": deploy_address}).setMintAgent(finalize_agent.address, True)
+        token.transact({"from": deploy_address}).setReleaseAgent(finalize_agent.address)
+
+        # Company allocation
+        crowdsale.transact({"from": deploy_address}).preallocate(company_wallet.address, companyCoins, 0)
+
+        # Team allocations
+        team_vault.transact({"from": deploy_address}).setInvestor("0x372515A11081431b1590194327fb97e98c20c6cc", 49000000 * 10**18)
+        team_vault.transact({"from": deploy_address}).setInvestor("0x8d641Db9E41824f616E95E64fe86f94da397Fe6a", 28500000 * 10**18)
+        team_vault.transact({"from": deploy_address}).setInvestor("0x0803668e2Dd3e779321560d2cf7957B66DD629Aa", 39500000 * 10**18)
+        team_vault.transact({"from": deploy_address}).setInvestor("0x53887F392660d7F6BB15A61d4B1d102DD4cF4983", 7000000 * 10**18)
+        team_vault.transact({"from": deploy_address}).setInvestor("0x8173d65C295a6982881245F16ce4808852dCE5f8", 7000000 * 10**18)
+        team_vault.transact({"from": deploy_address}).setInvestor("0xed72b55ed81ea2d5d6471a2833a6d8ab06f64857", 7000000 * 10**18)
+
+        # Team whitelist for pre-ico investment
+        crowdsale.transact({"from": deploy_address}).setEarlyParticipantWhitelist("0x372515A11081431b1590194327fb97e98c20c6cc", True)
+        crowdsale.transact({"from": deploy_address}).setEarlyParticipantWhitelist("0x8d641Db9E41824f616E95E64fe86f94da397Fe6a", True)
+        crowdsale.transact({"from": deploy_address}).setEarlyParticipantWhitelist("0x0803668e2Dd3e779321560d2cf7957B66DD629Aa", True)
+        crowdsale.transact({"from": deploy_address}).setEarlyParticipantWhitelist("0x53887F392660d7F6BB15A61d4B1d102DD4cF4983", True)
+        crowdsale.transact({"from": deploy_address}).setEarlyParticipantWhitelist("0x8173d65C295a6982881245F16ce4808852dCE5f8", True)
+        crowdsale.transact({"from": deploy_address}).setEarlyParticipantWhitelist("0xed72b55ed81ea2d5d6471a2833a6d8ab06f64857", True)
+
+        # Add team members as transfer agents so that they can move their tokens to the vault
+        token.transact({"from": deploy_address}).setTransferAgent("0x372515A11081431b1590194327fb97e98c20c6cc", True)
+        token.transact({"from": deploy_address}).setTransferAgent("0x8d641Db9E41824f616E95E64fe86f94da397Fe6a", True)
+        token.transact({"from": deploy_address}).setTransferAgent("0x0803668e2Dd3e779321560d2cf7957B66DD629Aa", True)
+        token.transact({"from": deploy_address}).setTransferAgent("0x53887F392660d7F6BB15A61d4B1d102DD4cF4983", True)
+        token.transact({"from": deploy_address}).setTransferAgent("0x8173d65C295a6982881245F16ce4808852dCE5f8", True)
+        token.transact({"from": deploy_address}).setTransferAgent("0xed72b55ed81ea2d5d6471a2833a6d8ab06f64857", True)
+
+        # Move ownership of all owned contracts to the company address
+        team_vault.transact({"from": deploy_address}).transferOwnership(company_wallet.address)
+        crowdsale.transact({"from": deploy_address}).transferOwnership(company_wallet.address)
+        token.transact({"from": deploy_address}).transferOwnership(company_wallet.address)
+        token.transact({"from": deploy_address}).setUpgradeMaster(company_wallet.address)
+
+        # NEXT UP: buy() using each team account; move tokens to vault; then maybe
+        # token.transact({"from": deploy_address}).setTransferAgent("0x372515A11081431b1590194327fb97e98c20c6cc", False)
+
+        # BEFORE ICO: Create new PricingStrategy with ICO price, then
+        #crowdsale.transact({"from": deploy_address}).setPricingStrategy("")
+
+    # Make sure that everything we have deployed all contracts in good state
+    # and their internal state is sane
+    verify_actions: |
+        assert token.call().owner() == company_wallet.address
+        assert crowdsale.call().owner() == company_wallet.address
+        assert finalize_agent.call().isSane()
+        assert crowdsale.call().getState() == CrowdsaleState.PreFunding
