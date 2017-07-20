@@ -66,13 +66,13 @@ contract Crowdsale is Haltable {
   bool public finalized;
 
   /* Do we need to have unique contributor id for each customer */
-  bool public requireCustomerId;
+  bool public requireCustomerId = false;
 
   /**
     * Do we verify that contributor has been cleared on the server side (accredited investors only).
     * This method was first used in FirstBlood crowdsale to ensure all contributors have accepted terms on sale (on the web).
     */
-  bool public requiredSignedAddress;
+  bool public requiredSignedAddress = false;
 
   /* Server side address that signed allowed contributors (Ethereum addresses) that can participate the crowdsale */
   address public signerAddress;
