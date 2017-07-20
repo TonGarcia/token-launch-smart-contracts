@@ -113,8 +113,9 @@ contract Crowdsale is Haltable {
   // Address early participation whitelist status changed
   event Whitelisted(address addr, bool status);
 
-  // Crowdsale end time has been changed
+  // Crowdsale start/end time has been changed
   event EndsAtChanged(uint endsAt);
+  event StartsAtChanged(uint startsAt);
 
   function Crowdsale(address _token, PricingStrategy _pricingStrategy, address _multisigWallet, uint _start, uint _end, uint _minimumFundingGoal) {
 
@@ -365,6 +366,24 @@ contract Crowdsale is Haltable {
   function setEarlyParticipantWhitelist(address addr, bool status) onlyOwner {
     earlyParticipantWhitelist[addr] = status;
     Whitelisted(addr, status);
+  }
+
+  /**
+   * Allow crowdsale owner to postpone the start of the crowdsale
+   */
+  function setStartsAt(uint time) onlyOwner {
+
+    // Don't put into past
+    if (time < now) { throw; }
+
+    // Change endsAt first...
+    if (time > endsAt) { throw; }
+
+    // If crowdsale has already started, the start can't be postponed anymore
+    if (startsAt < now) { throw; }
+
+    startsAt = time;
+    StartsAtChanged(endsAt);
   }
 
   /**
