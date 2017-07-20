@@ -171,14 +171,14 @@ contract Crowdsale is Haltable {
   function investInternal(address receiver, uint128 customerId) stopInEmergency private {
 
     // Determine if it's a good time to accept investment from this participant
-    if(getState() == State.PreFunding) {
+    State state = getState();
+    if (state == State.Funding) {
+      // Retail participants can only come in when the crowdsale is running
+    } else if (state == State.PreFunding) {
       // Are we whitelisted for early deposit
-      if(!earlyParticipantWhitelist[receiver]) {
+      if (!earlyParticipantWhitelist[receiver]) {
         throw;
       }
-    } else if(getState() == State.Funding) {
-      // Retail participants can only come in when the crowdsale is running
-      // pass
     } else {
       // Unwanted state
       throw;
@@ -187,12 +187,12 @@ contract Crowdsale is Haltable {
     uint weiAmount = msg.value;
     uint tokenAmount = pricingStrategy.calculatePrice(weiAmount, weiRaised, tokensSold, msg.sender, token.decimals());
 
-    if(tokenAmount == 0) {
+    if (tokenAmount == 0) {
       // Dust transaction
       throw;
     }
 
-    if(investedAmountOf[receiver] == 0) {
+    if (investedAmountOf[receiver] == 0) {
        // A new investor
        investorCount++;
     }
@@ -206,14 +206,14 @@ contract Crowdsale is Haltable {
     tokensSold = tokensSold.plus(tokenAmount);
 
     // Check that we did not bust the cap
-    if(isBreakingCap(weiAmount, tokenAmount, weiRaised, tokensSold)) {
+    if (isBreakingCap(weiAmount, tokenAmount, weiRaised, tokensSold)) {
       throw;
     }
 
     assignTokens(receiver, tokenAmount);
 
     // Pocket the money
-    if(!multisigWallet.send(weiAmount)) throw;
+    if (!multisigWallet.send(weiAmount)) throw;
 
     // Tell us invest was success
     Invested(receiver, weiAmount, tokenAmount, customerId);
@@ -398,7 +398,7 @@ contract Crowdsale is Haltable {
    */
   function setEndsAt(uint time) onlyOwner {
 
-    if(now > time) {
+    if (now > time) {
       throw; // Don't change past
     }
 
