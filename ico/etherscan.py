@@ -74,7 +74,7 @@ def verify_contract(project: Project, chain_name: str, address: str, contract_na
 
         # Give the contract deployment some time to propagate so that Etherscan will find it
         print("Waiting EtherScan to process the contract verification")
-        time.sleep(30)
+        time.sleep(240)
 
         browser.find_by_name("ctl00$ContentPlaceHolder1$btnSubmit").click()
 

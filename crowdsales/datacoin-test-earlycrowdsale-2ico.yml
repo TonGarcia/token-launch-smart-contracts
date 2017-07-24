@@ -26,7 +26,7 @@ rinkeby:
         company_wallet:
             contract_name: MultiSigWallet
             contract_file: GnosisWallet.sol
-            address: "0x92905b1f4c7c599d575cbef3fd00c5b161666cc6"   # rinkeby
+            address: "0x1a1812a2705dafd430c59d80588727fee463b063"   # rinkeby
             #address: "0x1bb7804d12fa4f70ab63d0bbe8cb0b1992694338"  # mainnet
 
         #
@@ -57,8 +57,12 @@ rinkeby:
         crowdsale:
             contract_name: MintedTokenCappedCrowdsale
             contract_file: MintedTokenCappedCrowdsale.sol
-            address: "0x4d31f6007df2f545d6f9c5bb1113d2d04346cf61"   # rinkeby
-            #address: ""    # mainnet
+            address: "0xc9928ef0eba70a18f3fde42180b602e39ed3aa11"   # rinkeby
+
+        token:
+            contract_name: CrowdsaleToken
+            contract_file: CrowdsaleToken.sol
+            address: "0x2882e887961a94a7fc5178a3ad78125c3684dc28"
 
     # Token allocations:
     #               B  M  k   tokens
@@ -69,7 +73,7 @@ rinkeby:
     # Post-deployment actions connect contracts together.
     # They set ownership and allowed actions, so that contracts can interact
     post_actions: |
-        # IMPORTANT: first transferOwnership of crowdsale to deploy_address 
+        # IMPORTANT: first transferOwnership of crowdsale and token to deploy_address
 
         # Set the ICO price
         crowdsale.transact({"from": deploy_address}).setPricingStrategy(pricing_strategy.address)
@@ -87,11 +91,11 @@ rinkeby:
 
         # Return crowdsale ownership to the company address
         crowdsale.transact({"from": deploy_address}).transferOwnership(company_wallet.address)
+        token.transact({"from": deploy_address}).transferOwnership(company_wallet.address)
 
     # Make sure that everything we have deployed all contracts in good state
     # and their internal state is sane
     verify_actions: |
         assert token.call().owner() == company_wallet.address
         assert crowdsale.call().owner() == company_wallet.address
-        assert finalize_agent.call().isSane()
         assert crowdsale.call().getState() == CrowdsaleState.PreFunding

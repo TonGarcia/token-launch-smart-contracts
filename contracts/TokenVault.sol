@@ -24,9 +24,6 @@ contract TokenVault is Ownable {
   /** How many investors we have now */
   uint public investorCount;
 
-  /** Sum from the spreadsheet how much tokens we should get on the contract. If the sum does not match at the time of the lock the vault is faulty and must be recreated.*/
-  uint public tokensToBeAllocated;
-
   /** How many tokens investors have claimed so far */
   uint public totalClaimed;
 
@@ -69,10 +66,9 @@ contract TokenVault is Ownable {
    *
    * @param _freezeEndsAt UNIX timestamp when the vault unlocks
    * @param _token Token contract address we are distributing
-   * @param _tokensToBeAllocated Total number of tokens this vault will hold - including decimal multiplcation
    *
    */
-  function TokenVault(uint _freezeEndsAt, StandardToken _token, uint _tokensToBeAllocated) {
+  function TokenVault(uint _freezeEndsAt, StandardToken _token) {
 
     owner = msg.sender;
 
@@ -93,13 +89,7 @@ contract TokenVault is Ownable {
       throw;
     }
 
-    // Sanity check on _tokensToBeAllocated
-    if(_tokensToBeAllocated == 0) {
-      throw;
-    }
-
     freezeEndsAt = _freezeEndsAt;
-    tokensToBeAllocated = _tokensToBeAllocated;
   }
 
   /// @dev Add a presale participating allocation
@@ -127,10 +117,11 @@ contract TokenVault is Ownable {
   }
 
   /// @dev Lock the vault
+  /// @param tokensToBeAllocated Sum from the spreadsheet how much tokens we should get on the contract. If the sum does not match at the time of the lock the vault is faulty and must be recreated.
   ///      - All balances have been loaded in correctly
   ///      - Tokens are transferred on this vault correctly
   ///      - Checks are in place to prevent creating a vault that is locked with incorrect token balances.
-  function lock() onlyOwner {
+  function lock(uint tokensToBeAllocated) onlyOwner {
 
     if(lockedAt > 0) {
       throw; // Already locked

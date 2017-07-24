@@ -26,7 +26,12 @@ rinkeby:
         company_wallet:
             contract_name: MultiSigWallet
             contract_file: GnosisWallet.sol
-            address: "0x92905b1f4c7c599d575cbef3fd00c5b161666cc6"   # rinkeby
+            arguments:
+                _owners:
+                    - "0xb3428050eA2448eD2E4409bE47E1a50EBac0B2d2"
+                    - "0xdFa5D494e1dfC45a43654a1D512Da250DDD31A37"
+                    - "0x455f27e21881b33d8b848EcC266d404C4136acab"
+                _required: 1
             #address: "0x1bb7804d12fa4f70ab63d0bbe8cb0b1992694338"  # mainnet
 
         #
@@ -71,8 +76,9 @@ rinkeby:
             contract_file: FlatPricing.sol
             arguments:
                 # ICO price: 1 ETH = 1000 token  => 10^18 wei = 1000 token => 1 token = 10^18 wei / 1000
-                # early price: 15% of tokens = 150 000 000 tokens = 15 ETH => 1 token = 10^18 wei / 10^7
-                _oneTokenInWei: "{{ (10**18 / 10**7 ) | round | int }}"
+                #_oneTokenInWei: "{{ (10**18 / 1000 ) | round | int }}"
+                # early price: 15% of tokens = 150 000 000 tokens = 96 ETH = 96 * 10^18 wei
+                _oneTokenInWei: "{{ ((96 * 10**18) / (150 * 10**6) ) | round | int }}"
 
         #
         # Crowdsale
@@ -131,7 +137,7 @@ rinkeby:
         token.transact({"from": deploy_address}).setReleaseAgent(finalize_agent.address)
 
         # Company allocation
-        crowdsale.transact({"from": deploy_address}).preallocate(company_wallet.address, companyCoins, 0)
+        crowdsale.transact({"from": deploy_address}).preallocate(company_wallet.address, companyCoins * 10**18, 0)
 
         # Team allocations
         team_vault.transact({"from": deploy_address}).setInvestor("0x372515A11081431b1590194327fb97e98c20c6cc", 49000000 * 10**18)
@@ -139,7 +145,7 @@ rinkeby:
         team_vault.transact({"from": deploy_address}).setInvestor("0x0803668e2Dd3e779321560d2cf7957B66DD629Aa", 39500000 * 10**18)
         team_vault.transact({"from": deploy_address}).setInvestor("0x53887F392660d7F6BB15A61d4B1d102DD4cF4983", 7000000 * 10**18)
         team_vault.transact({"from": deploy_address}).setInvestor("0x8173d65C295a6982881245F16ce4808852dCE5f8", 7000000 * 10**18)
-        team_vault.transact({"from": deploy_address}).setInvestor("0xed72b55ed81ea2d5d6471a2833a6d8ab06f64857", 7000000 * 10**18)
+        team_vault.transact({"from": deploy_address}).setInvestor("0xb3428050eA2448eD2E4409bE47E1a50EBac0B2d2", 7000000 * 10**18)
 
         # Team whitelist for pre-ico investment
         crowdsale.transact({"from": deploy_address}).setEarlyParticipantWhitelist("0x372515A11081431b1590194327fb97e98c20c6cc", True)
@@ -147,7 +153,7 @@ rinkeby:
         crowdsale.transact({"from": deploy_address}).setEarlyParticipantWhitelist("0x0803668e2Dd3e779321560d2cf7957B66DD629Aa", True)
         crowdsale.transact({"from": deploy_address}).setEarlyParticipantWhitelist("0x53887F392660d7F6BB15A61d4B1d102DD4cF4983", True)
         crowdsale.transact({"from": deploy_address}).setEarlyParticipantWhitelist("0x8173d65C295a6982881245F16ce4808852dCE5f8", True)
-        crowdsale.transact({"from": deploy_address}).setEarlyParticipantWhitelist("0xed72b55ed81ea2d5d6471a2833a6d8ab06f64857", True)
+        crowdsale.transact({"from": deploy_address}).setEarlyParticipantWhitelist("0xb3428050eA2448eD2E4409bE47E1a50EBac0B2d2", True)
 
         # Add team members as transfer agents so that they can move their tokens to the vault
         token.transact({"from": deploy_address}).setTransferAgent("0x372515A11081431b1590194327fb97e98c20c6cc", True)
@@ -155,19 +161,13 @@ rinkeby:
         token.transact({"from": deploy_address}).setTransferAgent("0x0803668e2Dd3e779321560d2cf7957B66DD629Aa", True)
         token.transact({"from": deploy_address}).setTransferAgent("0x53887F392660d7F6BB15A61d4B1d102DD4cF4983", True)
         token.transact({"from": deploy_address}).setTransferAgent("0x8173d65C295a6982881245F16ce4808852dCE5f8", True)
-        token.transact({"from": deploy_address}).setTransferAgent("0xed72b55ed81ea2d5d6471a2833a6d8ab06f64857", True)
+        token.transact({"from": deploy_address}).setTransferAgent("0xb3428050eA2448eD2E4409bE47E1a50EBac0B2d2", True)
 
         # Move ownership of all owned contracts to the company address
         team_vault.transact({"from": deploy_address}).transferOwnership(company_wallet.address)
         crowdsale.transact({"from": deploy_address}).transferOwnership(company_wallet.address)
         token.transact({"from": deploy_address}).transferOwnership(company_wallet.address)
         token.transact({"from": deploy_address}).setUpgradeMaster(company_wallet.address)
-
-        # NEXT UP: buy() using each team account; move tokens to vault; then maybe
-        # token.transact({"from": deploy_address}).setTransferAgent("0x372515A11081431b1590194327fb97e98c20c6cc", False)
-
-        # BEFORE ICO: Create new PricingStrategy with ICO price, then
-        #crowdsale.transact({"from": deploy_address}).setPricingStrategy("")
 
     # Make sure that everything we have deployed all contracts in good state
     # and their internal state is sane

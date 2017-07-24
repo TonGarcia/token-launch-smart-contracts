@@ -48,9 +48,10 @@ def deploy_contract(project: Project, chain, deploy_address, contract_def: dict,
             request_account_unlock(chain, deploy_address, timeout=3600)
 
     # Use non-default gas price for speedier processing
-    gas_price = int(web3.eth.gasPrice * 1.2)
+    #gas_price = int(web3.eth.gasPrice * 1.2)
+    gas_price = int(30 * 10**9)
 
-    transaction = {"from": deploy_address, "gasPrice": gas_price}
+    transaction = {"from": deploy_address, "gasPrice": gas_price, "gas": 2500000}
     kwargs = dict(**contract_def["arguments"])  # Unwrap YAML CommentedMap
 
     print("Starting", contract_name, "deployment, with arguments ", kwargs)
@@ -154,6 +155,14 @@ def deploy_crowdsale(project: Project, chain, source_definitions: dict, deploy_a
             with open(expanded_path, "wt") as out:
                 out.write(src)
 
+        # Write out ABI
+        #abi_out_dir = os.path.join(os.getcwd(), "build", "abi")
+        #if not os.path.exists(abi_out_dir):
+            #os.makedirs(abi_out_dir)
+        #abi_out_path = os.path.join(abi_out_dir, contract_name + ".json")
+        #with open(abi_out_path, "wt") as out:
+            #out.write(abi)
+
     return runtime_data, statistics, contracts
 
 
@@ -226,7 +235,7 @@ def perform_verify_actions(chain, runtime_data: dict, contracts: dict):
         print("Performing deployment verification")
 
         # Allow some time for post_actions to be mined
-        time.sleep(60)
+        time.sleep(240)
 
         exec_lines(verify_actions, context, print_prefix="Verification:")
     else:
