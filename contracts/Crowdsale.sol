@@ -6,7 +6,6 @@ import "./PricingStrategy.sol";
 import "./FinalizeAgent.sol";
 import "./FractionalERC20.sol";
 
-
 /**
  * Abstract base contract for token sales.
  *
@@ -18,6 +17,8 @@ import "./FractionalERC20.sol";
  * - different pricing strategies
  * - different investment policies (require server side customer id, allow only whitelisted addresses)
  *
+ * Changes:
+ * - Whitelisting also for the State.Funding phase, with individual limits
  */
 contract Crowdsale is Haltable {
 
@@ -41,8 +42,11 @@ contract Crowdsale is Haltable {
   /* if the funding goal is not reached, investors may withdraw their funds */
   uint public minimumFundingGoal;
 
-  /* the UNIX timestamp start date of the crowdsale */
+  /* the UNIX timestamp start date of the crowdsale; CHANGE: small-cap limits apply */
   uint public startsAt;
+
+  /* CHANGE: Seconds after start of the crowdsale when the large-cap limit applies (added on top of small-cap limit) */
+  uint public largeCapDelay = 24 * 60 * 60;
 
   /* the UNIX timestamp end date of the crowdsale */
   uint public endsAt;
@@ -83,8 +87,17 @@ contract Crowdsale is Haltable {
   /** How much tokens this crowdsale has credited for each investor address */
   mapping (address => uint256) public tokenAmountOf;
 
+  /** Addresses that are allowed to invest, and their individual limit (in tokens) */
+  mapping (address => uint256) public smallCapTokenLimitOf;
+
+  /** Addresses that are allowed to invest after a largeCapDelay, and their individual large-cap limit (in tokens, possibly in addition to smallCapTokenLimitOf their account) */
+  mapping (address => uint256) public largeCapTokenLimitOf;
+
   /** Addresses that are allowed to invest even before ICO offical opens. For testing, for ICO partners, etc. */
   mapping (address => bool) public earlyParticipantWhitelist;
+
+  /** Addresses that are allowed to add participants to the TokenLimitOf whitelists */
+  mapping (address => bool) public isWhitelistAgent;
 
   /** This is for manul testing for the interaction from owner wallet. You can set it to any value and inspect this in blockchain explorer to see that crowdsale interaction works. */
   uint public ownerTestValue;
@@ -110,12 +123,15 @@ contract Crowdsale is Haltable {
   // The rules were changed what kind of investments we accept
   event InvestmentPolicyChanged(bool requireCustomerId, bool requiredSignedAddress, address signerAddress);
 
-  // Address early participation whitelist status changed
-  event Whitelisted(address addr, bool status);
+  // Whitelist status and/or tokenLimit changed
+  event WhitelistedEarlyParticipant(address addr, bool status);
+  event WhitelistedSmallCap(address addr, uint256 tokenLimit);
+  event WhitelistedLargeCap(address addr, uint256 tokenLimit);
 
   // Crowdsale start/end time has been changed
   event EndsAtChanged(uint endsAt);
   event StartsAtChanged(uint startsAt);
+  event LargeCapStartTimeChanged(uint startsAt);
 
   function Crowdsale(address _token, PricingStrategy _pricingStrategy, address _multisigWallet, uint _start, uint _end, uint _minimumFundingGoal) {
 
@@ -146,6 +162,10 @@ contract Crowdsale is Haltable {
     if(startsAt >= endsAt) {
         throw;
     }
+
+    // owner and multisig are able to whitelist participants by default
+    isWhitelistAgent[owner] = true;
+    isWhitelistAgent[multisigWallet] = true;
 
     // Minimum funding goal can be zero
     minimumFundingGoal = _minimumFundingGoal;
@@ -200,6 +220,15 @@ contract Crowdsale is Haltable {
     // Update investor
     investedAmountOf[receiver] = investedAmountOf[receiver].plus(weiAmount);
     tokenAmountOf[receiver] = tokenAmountOf[receiver].plus(tokenAmount);
+
+    // Check individual token limit (also acts as crowdsale whitelist)
+    uint256 personalTokenLimit = smallCapTokenLimitOf[receiver];
+    if (block.timestamp > startsAt + largeCapDelay) {
+      personalTokenLimit = safeAdd(personalTokenLimit, largeCapTokenLimitOf[receiver]);
+    }
+    if (tokenAmountOf[receiver] > personalTokenLimit) {
+      throw;
+    }
 
     // Update totals
     weiRaised = weiRaised.plus(weiAmount);
@@ -365,7 +394,72 @@ contract Crowdsale is Haltable {
    */
   function setEarlyParticipantWhitelist(address addr, bool status) onlyOwner {
     earlyParticipantWhitelist[addr] = status;
-    Whitelisted(addr, status);
+    WhitelistedEarlyParticipant(addr, status);
+  }
+
+  /**
+   * Change to original: require all participants to be whitelisted, with individual token limits
+   */
+  function setSmallCapWhitelistParticipant(address addr, uint256 tokenLimit) {
+    if (isWhitelistAgent[msg.sender]) {
+      smallCapTokenLimitOf[addr] = tokenLimit;
+      WhitelistedSmallCap(addr, tokenLimit);
+    }
+  }
+  function setSmallCapWhitelistParticipants(address[] addrs, uint256 tokenLimit) {
+    if (isWhitelistAgent[msg.sender]) {
+      for (uint i = 0; i < addrs.length; i++) {
+        var addr = addrs[i];
+        smallCapTokenLimitOf[addr] = tokenLimit;
+        WhitelistedSmallCap(addr, tokenLimit);
+      }
+    }
+  }
+  function setSmallCapWhitelistParticipants(address[] addrs, uint256[] tokenLimits) {
+    if (addrs.length != tokenLimits.length) {
+      throw;
+    }
+    if (isWhitelistAgent[msg.sender]) {
+      for (uint i = 0; i < addrs.length; i++) {
+        var addr = addrs[i];
+        var tokenLimit = tokenLimits[i];
+        smallCapTokenLimitOf[addr] = tokenLimit;
+        WhitelistedSmallCap(addr, tokenLimit);
+      }
+    }
+  }
+
+  function setLargeCapWhitelistParticipant(address addr, uint256 tokenLimit) {
+    if (isWhitelistAgent[msg.sender]) {
+      largeCapTokenLimitOf[addr] = tokenLimit;
+      WhitelistedLargeCap(addr, tokenLimit);
+    }
+  }
+  function setLargeCapWhitelistParticipants(address[] addrs, uint256 tokenLimit) {
+    if (isWhitelistAgent[msg.sender]) {
+      for (uint i = 0; i < addrs.length; i++) {
+        var addr = addrs[i];
+        largeCapTokenLimitOf[addr] = tokenLimit;
+        WhitelistedLargeCap(addr, tokenLimit);
+      }
+    }
+  }
+  function setLargeCapWhitelistParticipants(address[] addrs, uint256[] tokenLimits) {
+    if (addrs.length != tokenLimits.length) {
+      throw;
+    }
+    if (isWhitelistAgent[msg.sender]) {
+      for (uint i = 0; i < addrs.length; i++) {
+        var addr = addrs[i];
+        var tokenLimit = tokenLimits[i];
+        largeCapTokenLimitOf[addr] = tokenLimit;
+        WhitelistedLargeCap(addr, tokenLimit);
+      }
+    }
+  }
+
+  function setWhitelistAgent(address addr, bool status) onlyOwner {
+    isWhitelistAgent[addr] = status;
   }
 
   /**
@@ -384,6 +478,19 @@ contract Crowdsale is Haltable {
 
     startsAt = time;
     StartsAtChanged(endsAt);
+  }
+
+  function setLargeCapDelay(uint secs) onlyOwner {
+    if (secs < 0) { throw; }
+
+    // Change endsAt first...
+    if (startsAt + secs > endsAt) { throw; }
+
+    // If large-cap sale has already started, the start can't be postponed anymore
+    if (startsAt + largeCapDelay < now) { throw; }
+
+    largeCapDelay = secs;
+    LargeCapStartTimeChanged(startsAt + largeCapDelay);
   }
 
   /**
