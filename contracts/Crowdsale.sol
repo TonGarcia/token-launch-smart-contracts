@@ -264,6 +264,8 @@ contract Crowdsale is Haltable {
    *
    */
   function preallocate(address receiver, uint tokenAmount, uint weiAmount) public onlyOwner {
+    if (getState() != State.PreFunding) { throw; }
+
     // Free pre-allocations don't count as "sold tokens"
     if (weiAmount == 0) {
       tokenAmountOf[receiver] = tokenAmountOf[receiver].plus(tokenAmount);
