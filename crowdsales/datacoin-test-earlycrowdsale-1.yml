@@ -63,7 +63,7 @@ rinkeby:
                 #_owner: "{{contracts.company_wallet.address}}"
                 _freezeEndsAt: "{{ timestamp(datetime(2018, 11, 1, 0, 0)) }}"
                 _token: "{{contracts.token.address}}"
-                _tokensToBeAllocated: "{{ totalTeamCoins * 10**18 }}" # in "atomic units" (10^18 per full token)
+                #_tokensToBeAllocated: "{{ totalTeamCoins * 10**18 }}" # in "atomic units" (10^18 per full token)
         #
         # Pricing strategy
         #

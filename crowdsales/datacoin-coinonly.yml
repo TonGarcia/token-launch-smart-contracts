@@ -1,4 +1,4 @@
-# A testnet deployment for the token, wallet and vault ONLY
+# A deployment for the token, wallet and vault ONLY
 mainnet:
 
     # Chain we are connected to.
