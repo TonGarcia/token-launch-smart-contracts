@@ -224,7 +224,7 @@ contract Crowdsale is Haltable {
     // Check individual token limit (also acts as crowdsale whitelist)
     uint256 personalTokenLimit = smallCapTokenLimitOf[receiver];
     if (block.timestamp > startsAt + largeCapDelay) {
-      personalTokenLimit = safeAdd(personalTokenLimit, largeCapTokenLimitOf[receiver]);
+      personalTokenLimit = personalTokenLimit.plus(largeCapTokenLimitOf[receiver]);
     }
     if (tokenAmountOf[receiver] > personalTokenLimit) {
       throw;
