@@ -175,7 +175,7 @@ contract Crowdsale is Haltable {
    * Don't expect to just send in money and get tokens.
    */
   function() payable {
-    throw;
+    invest(msg.sender);
   }
 
   /**
