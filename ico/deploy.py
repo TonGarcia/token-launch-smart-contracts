@@ -27,6 +27,8 @@ from ico.utils import get_libraries
 from ico.etherscan import verify_contract
 from ico.etherscan import get_etherscan_link
 
+from ico.importexpand import expand_contract_imports
+
 
 def deploy_contract(project: Project, chain, deploy_address, contract_def: dict, chain_name: str, need_unlock=True) -> Contract:
     """Deploy a single contract.
@@ -49,9 +51,9 @@ def deploy_contract(project: Project, chain, deploy_address, contract_def: dict,
 
     # Use non-default gas price for speedier processing
     #gas_price = int(web3.eth.gasPrice * 1.2)
-    gas_price = int(30 * 10**9)
+    gas_price = 30000000000
 
-    transaction = {"from": deploy_address, "gasPrice": gas_price, "gas": 2500000}
+    transaction = {"from": deploy_address, "gasPrice": gas_price, "gas": 3000000}
     kwargs = dict(**contract_def["arguments"])  # Unwrap YAML CommentedMap
 
     print("Starting", contract_name, "deployment, with arguments ", kwargs)
@@ -134,9 +136,10 @@ def deploy_crowdsale(project: Project, chain, source_definitions: dict, deploy_a
         statistics["deployed"] += 1
 
         # Perform manual verification of the deployed contract
+        fname = runtime_data["contracts"][name]["contract_file"]
+        src, imported_files = expand_contract_imports(project, fname)
         if verify_on_etherscan:
-            fname = runtime_data["contracts"][name]["contract_file"]
-            src = verify_contract(
+            verify_contract(
                 project=project,
                 chain_name=chain_name,
                 address=runtime_data["contracts"][name]["address"],
@@ -144,16 +147,18 @@ def deploy_crowdsale(project: Project, chain, source_definitions: dict, deploy_a
                 contract_filename=fname,
                 constructor_args=runtime_data["contracts"][name]["constructor_args"],
                 libraries=runtime_data["contracts"][name]["libraries"],
-                browser_driver=browser_driver)
+                browser_driver=browser_driver,
+                src=src,
+                imported_files=imported_files)
             runtime_data["contracts"][name]["etherscan_link"] = get_etherscan_link(chain_name, runtime_data["contracts"][name]["address"])
 
-            # Write out our expanded contract
-            expanded_dir = os.path.join(os.getcwd(), "build", "expanded")
-            if not os.path.exists(expanded_dir):
-                os.makedirs(expanded_dir)
-            expanded_path = os.path.join(expanded_dir, fname)
-            with open(expanded_path, "wt") as out:
-                out.write(src)
+        # Write out our expanded contract
+        expanded_dir = os.path.join(os.getcwd(), "build", "expanded")
+        if not os.path.exists(expanded_dir):
+            os.makedirs(expanded_dir)
+        expanded_path = os.path.join(expanded_dir, fname)
+        with open(expanded_path, "wt") as out:
+            out.write(src)
 
         # Write out ABI
         #abi_out_dir = os.path.join(os.getcwd(), "build", "abi")

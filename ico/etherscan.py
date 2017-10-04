@@ -21,7 +21,7 @@ def _fill_in_textarea_value(browser, splinter_elem, value):
 
 
 
-def verify_contract(project: Project, chain_name: str, address: str, contract_name, contract_filename: str, constructor_args: str, libraries: dict, optimization=True, compiler: str="v0.4.8+commit.60cc1668", browser_driver="chrome") -> str:
+def verify_contract(project: Project, chain_name: str, address: str, contract_name, contract_filename: str, constructor_args: str, libraries: dict, optimization=True, compiler: str="v0.4.8+commit.60cc1668", browser_driver="chrome", src=None, imported_files=None) -> str:
     """Semi-automated contract verified on Etherscan.
 
     Uses a web browser + Selenium auto fill to verify contracts.
@@ -36,7 +36,8 @@ def verify_contract(project: Project, chain_name: str, address: str, contract_na
     except ImportError:
         raise RuntimeError("Splinter package must be installed for verification automation")
 
-    src, imported_files = expand_contract_imports(project, contract_filename)
+    if src is None or imported_files is None:
+        src, imported_files = expand_contract_imports(project, contract_filename)
 
     if chain_name == "mainnet":
         url = "https://etherscan.io/verifyContract"
