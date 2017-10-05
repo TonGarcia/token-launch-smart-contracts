@@ -87,16 +87,16 @@ contract Crowdsale is Haltable {
   /** How much tokens this crowdsale has credited for each investor address */
   mapping (address => uint256) public tokenAmountOf;
 
-  /** Addresses that are allowed to invest, and their individual limit (in tokens) */
-  mapping (address => uint256) public smallCapTokenLimitOf;
+  /** Addresses that are allowed to invest, and their individual limit (in wei) */
+  mapping (address => uint256) public smallCapLimitOf;
 
-  /** Addresses that are allowed to invest after a largeCapDelay, and their individual large-cap limit (in tokens, possibly in addition to smallCapTokenLimitOf their account) */
-  mapping (address => uint256) public largeCapTokenLimitOf;
+  /** Addresses that are allowed to invest after a largeCapDelay, and their individual large-cap limit (in wei, possibly in addition to smallCapLimitOf their account) */
+  mapping (address => uint256) public largeCapLimitOf;
 
   /** Addresses that are allowed to invest even before ICO offical opens. For testing, for ICO partners, etc. */
   mapping (address => bool) public earlyParticipantWhitelist;
 
-  /** Addresses that are allowed to add participants to the TokenLimitOf whitelists */
+  /** Addresses that are allowed to add participants to the LimitOf whitelists */
   mapping (address => bool) public isWhitelistAgent;
 
   /** This is for manul testing for the interaction from owner wallet. You can set it to any value and inspect this in blockchain explorer to see that crowdsale interaction works. */
@@ -123,10 +123,10 @@ contract Crowdsale is Haltable {
   // The rules were changed what kind of investments we accept
   event InvestmentPolicyChanged(bool requireCustomerId, bool requiredSignedAddress, address signerAddress);
 
-  // Whitelist status and/or tokenLimit changed
+  // Whitelist status and/or wei limit changed
   event WhitelistedEarlyParticipant(address addr, bool status);
-  event WhitelistedSmallCap(address addr, uint256 tokenLimit);
-  event WhitelistedLargeCap(address addr, uint256 tokenLimit);
+  event WhitelistedSmallCap(address addr, uint256 limit);
+  event WhitelistedLargeCap(address addr, uint256 limit);
 
   // Crowdsale start/end time has been changed
   event EndsAtChanged(uint endsAt);
@@ -222,11 +222,11 @@ contract Crowdsale is Haltable {
     tokenAmountOf[receiver] = tokenAmountOf[receiver].plus(tokenAmount);
 
     // Check individual token limit (also acts as crowdsale whitelist)
-    uint256 personalTokenLimit = smallCapTokenLimitOf[receiver];
+    uint256 personalWeiLimit = smallCapLimitOf[receiver];
     if (block.timestamp > startsAt + largeCapDelay) {
-      personalTokenLimit = personalTokenLimit.plus(largeCapTokenLimitOf[receiver]);
+      personalWeiLimit = personalWeiLimit.plus(largeCapLimitOf[receiver]);
     }
-    if (tokenAmountOf[receiver] > personalTokenLimit) {
+    if (investedAmountOf[receiver] > personalWeiLimit) {
       throw;
     }
 
@@ -407,60 +407,60 @@ contract Crowdsale is Haltable {
   /**
    * Change to original: require all participants to be whitelisted, with individual token limits
    */
-  function setSmallCapWhitelistParticipant(address addr, uint256 tokenLimit) {
+  function setSmallCapWhitelistParticipant(address addr, uint256 weiLimit) {
     if (isWhitelistAgent[msg.sender]) {
-      smallCapTokenLimitOf[addr] = tokenLimit;
-      WhitelistedSmallCap(addr, tokenLimit);
+      smallCapLimitOf[addr] = weiLimit;
+      WhitelistedSmallCap(addr, weiLimit);
     }
   }
-  function setSmallCapWhitelistParticipants(address[] addrs, uint256 tokenLimit) {
+  function setSmallCapWhitelistParticipants(address[] addrs, uint256 weiLimit) {
     if (isWhitelistAgent[msg.sender]) {
       for (uint i = 0; i < addrs.length; i++) {
         var addr = addrs[i];
-        smallCapTokenLimitOf[addr] = tokenLimit;
-        WhitelistedSmallCap(addr, tokenLimit);
+        smallCapLimitOf[addr] = weiLimit;
+        WhitelistedSmallCap(addr, weiLimit);
       }
     }
   }
-  function setSmallCapWhitelistParticipants(address[] addrs, uint256[] tokenLimits) {
-    if (addrs.length != tokenLimits.length) {
+  function setSmallCapWhitelistParticipants(address[] addrs, uint256[] weiLimits) {
+    if (addrs.length != weiLimits.length) {
       throw;
     }
     if (isWhitelistAgent[msg.sender]) {
       for (uint i = 0; i < addrs.length; i++) {
         var addr = addrs[i];
-        var tokenLimit = tokenLimits[i];
-        smallCapTokenLimitOf[addr] = tokenLimit;
-        WhitelistedSmallCap(addr, tokenLimit);
+        var weiLimit = weiLimits[i];
+        smallCapLimitOf[addr] = weiLimit;
+        WhitelistedSmallCap(addr, weiLimit);
       }
     }
   }
 
-  function setLargeCapWhitelistParticipant(address addr, uint256 tokenLimit) {
+  function setLargeCapWhitelistParticipant(address addr, uint256 weiLimit) {
     if (isWhitelistAgent[msg.sender]) {
-      largeCapTokenLimitOf[addr] = tokenLimit;
-      WhitelistedLargeCap(addr, tokenLimit);
+      largeCapLimitOf[addr] = weiLimit;
+      WhitelistedLargeCap(addr, weiLimit);
     }
   }
-  function setLargeCapWhitelistParticipants(address[] addrs, uint256 tokenLimit) {
+  function setLargeCapWhitelistParticipants(address[] addrs, uint256 weiLimit) {
     if (isWhitelistAgent[msg.sender]) {
       for (uint i = 0; i < addrs.length; i++) {
         var addr = addrs[i];
-        largeCapTokenLimitOf[addr] = tokenLimit;
-        WhitelistedLargeCap(addr, tokenLimit);
+        largeCapLimitOf[addr] = weiLimit;
+        WhitelistedLargeCap(addr, weiLimit);
       }
     }
   }
-  function setLargeCapWhitelistParticipants(address[] addrs, uint256[] tokenLimits) {
-    if (addrs.length != tokenLimits.length) {
+  function setLargeCapWhitelistParticipants(address[] addrs, uint256[] weiLimits) {
+    if (addrs.length != weiLimits.length) {
       throw;
     }
     if (isWhitelistAgent[msg.sender]) {
       for (uint i = 0; i < addrs.length; i++) {
         var addr = addrs[i];
-        var tokenLimit = tokenLimits[i];
-        largeCapTokenLimitOf[addr] = tokenLimit;
-        WhitelistedLargeCap(addr, tokenLimit);
+        var weiLimit = weiLimits[i];
+        largeCapLimitOf[addr] = weiLimit;
+        WhitelistedLargeCap(addr, weiLimit);
       }
     }
   }
